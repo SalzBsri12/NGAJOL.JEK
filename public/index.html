@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ngajol - Ojek Online Urang Sunda</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 16px; }
+        .card { width: 100%; max-width: 380px; background: white; border-radius: 16px; padding: 24px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .logo { text-align: center; margin-bottom: 20px; }
+        .logo-icon { width: 60px; height: 60px; background: #16a34a; color: white; border-radius: 16px; display: flex; align-items: center; justify-content: center; font-size: 28px; margin: 0 auto 10px auto; }
+        .logo h2 { font-size: 20px; color: #0f172a; margin-top: 5px; font-weight: bold; }
+        .logo p { font-size: 12px; color: #64748b; }
+        
+        .form-group { margin-bottom: 14px; }
+        .form-group label { display: block; font-size: 12px; font-weight: bold; color: #334155; margin-bottom: 6px; }
+        .form-group input, .form-group select { width: 100%; padding: 11px; font-size: 13px; border: 1px solid #cbd5e1; border-radius: 8px; outline: none; transition: 0.2s; }
+        .form-group input:focus, .form-group select:focus { border-color: #16a34a; }
+        
+        .btn { width: 100%; background: #16a34a; color: white; border: none; padding: 12px; border-radius: 8px; font-weight: bold; font-size: 14px; cursor: pointer; margin-top: 10px; }
+        .btn:hover { background: #15803d; }
+        
+        .toggle-btn { text-align: center; margin-top: 15px; font-size: 12px; color: #64748b; }
+        .toggle-btn span { color: #16a34a; font-weight: bold; cursor: pointer; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <div class="card">
+        <div class="logo">
+            <div class="logo-icon"><i class="fa-solid fa-motorcycle"></i></div>
+            <h2>NGAJOL</h2>
+            <p>Ojek Online Urang Sunda</p>
+        </div>
+
+        <!-- Form Login Tunggal -->
+        <div id="loginForm">
+            <div class="form-group">
+                <label><i class="fa-solid fa-phone"></i> Nomor HP</label>
+                <input type="number" id="loginHp" placeholder="Masukkan No HP">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock"></i> Password</label>
+                <input type="password" id="loginPass" placeholder="Masukkan password">
+            </div>
+            <button class="btn" onclick="doLogin()"><i class="fa-solid fa-right-to-bracket"></i> MASUK APLIKASI</button>
+            <div class="toggle-btn">
+                Belum punya akun? <span onclick="toggleAuth(true)">Daftar Akun Baru</span>
+            </div>
+        </div>
+
+        <!-- Form Register (Pilih Role di Sini) -->
+        <div id="regForm" class="hidden">
+            <div class="form-group">
+                <label><i class="fa-solid fa-user"></i> Nama Lengkap</label>
+                <input type="text" id="regNama" placeholder="Nama lengkap kamu">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-phone"></i> Nomor HP</label>
+                <input type="number" id="regHp" placeholder="Contoh: 08123456789">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-lock"></i> Password</label>
+                <input type="password" id="regPass" placeholder="Buat password">
+            </div>
+            <div class="form-group">
+                <label><i class="fa-solid fa-id-badge"></i> Daftar Sebagai</label>
+                <select id="regRole">
+                    <option value="penumpang">Penumpang</option>
+                    <option value="driver">Driver (Mitra Ojek)</option>
+                </select>
+            </div>
+            <button class="btn" onclick="doRegister()"><i class="fa-solid fa-user-plus"></i> DAFTAR SEKARANG</button>
+            <div class="toggle-btn">
+                Sudah punya akun? <span onclick="toggleAuth(false)">Masuk di sini</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Cek Sesi Otomatis Saat Buka Aplikasi
+        document.addEventListener('DOMContentLoaded', () => {
+            const user = JSON.parse(localStorage.getItem('ngajol_user'));
+            if (user && user.role) {
+                redirectByRole(user.role);
+            }
+        });
+
+        function toggleAuth(showReg) {
+            document.getElementById('loginForm').classList.toggle('hidden', showReg);
+            document.getElementById('regForm').classList.toggle('hidden', !showReg);
+        }
+
+        function redirectByRole(role) {
+            if (role === 'driver') {
+                window.location.href = '/driver.html';
+            } else {
+                window.location.href = '/passenger.html';
+            }
+        }
+
+        async function doLogin() {
+            const no_hp = document.getElementById('loginHp').value.trim();
+            const password = document.getElementById('loginPass').value.trim();
+
+            if (!no_hp || !password) return alert("Isi Nomor HP & Password terlebih dahulu!");
+
+            try {
+                const res = await fetch('/api/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ no_hp, password })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert(`Login Berhasil! Selamat datang, ${data.user.nama}`);
+                    localStorage.setItem('ngajol_user', JSON.stringify(data.user));
+                    redirectByRole(data.user.role);
+                } else {
+                    alert(data.message);
+                }
+            } catch(e) {
+                alert("Gagal terhubung ke server!");
+            }
+        }
+
+        async function doRegister() {
+            const nama = document.getElementById('regNama').value.trim();
+            const no_hp = document.getElementById('regHp').value.trim();
+            const password = document.getElementById('regPass').value.trim();
+            const role = document.getElementById('regRole').value;
+
+            if (!nama || !no_hp || !password) return alert("Lengkapi semua data pendaftaran!");
+
+            try {
+                const res = await fetch('/api/register', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ nama, no_hp, password, role })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    alert("Pendaftaran Berhasil! Silakan Masuk.");
+                    toggleAuth(false);
+                    document.getElementById('loginHp').value = no_hp;
+                } else {
+                    alert(data.message);
+                }
+            } catch(e) {
+                alert("Gagal mendaftar ke server!");
+            }
+        }
+    </script>
+</body>
+</html>

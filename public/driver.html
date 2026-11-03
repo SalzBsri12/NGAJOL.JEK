@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ngajol - Driver</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+
+        .app-frame {
+            width: 100%; max-width: 430px; height: 100vh; max-height: 900px;
+            background: #fff; display: flex; flex-direction: column;
+            position: relative; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .app-header {
+            background: #fff; padding: 12px 16px; display: flex; align-items: center;
+            justify-content: space-between; border-bottom: 1px solid #e2e8f0; z-index: 20;
+        }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .logo-box { width: 36px; height: 36px; background: #0f172a; color: #4ade80; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .title h1 { font-size: 15px; font-weight: bold; color: #0f172a; line-height: 1.1; }
+        .title p { font-size: 11px; color: #64748b; }
+
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .badge-role { background: #f1f5f9; color: #334155; font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; border: 1px solid #cbd5e1; }
+        .btn-logout { background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; }
+
+        .map-container { flex: 1; width: 100%; position: relative; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+
+        .sheet { background: white; border-radius: 20px 20px 0 0; padding: 16px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); z-index: 20; display: flex; flex-direction: column; gap: 12px; }
+
+        .status-box { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 10px 14px; display: flex; justify-content: space-between; align-items: center; }
+        .status-info { display: flex; align-items: center; gap: 10px; }
+        .dot { width: 10px; height: 10px; border-radius: 50%; background: #94a3b8; }
+        .dot.online { background: #16a34a; box-shadow: 0 0 8px #22c55e; }
+
+        .toggle-switch { position: relative; display: inline-block; width: 44px; height: 24px; }
+        .toggle-switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; inset: 0; background-color: #cbd5e1; transition: .3s; border-radius: 24px; }
+        .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; }
+        input:checked + .slider { background-color: #16a34a; }
+        input:checked + .slider:before { transform: translateX(20px); }
+
+        .order-card { background: white; border: 2px solid #16a34a; border-radius: 16px; padding: 14px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); }
+        .order-header { display: flex; justify-content: space-between; align-items: baseline; }
+        .order-fare { font-size: 16px; font-weight: bold; color: #16a34a; }
+        .order-details { background: #f8fafc; padding: 8px 10px; border-radius: 8px; font-size: 11px; color: #334155; display: flex; flex-direction: column; gap: 4px; }
+
+        .btn-group { display: flex; gap: 8px; }
+        .btn { flex: 1; border: none; padding: 10px; border-radius: 10px; font-weight: bold; font-size: 12px; cursor: pointer; text-align: center; }
+        .btn-accept { background: #16a34a; color: white; }
+        .btn-reject { background: #f1f5f9; color: #64748b; }
+        .btn-chat { background: #0f172a; color: white; width: 42px; display: flex; align-items: center; justify-content: center; font-size: 14px; }
+
+        .hidden { display: none !important; }
+        .chat-window { position: absolute; inset: 0; background: white; z-index: 50; display: flex; flex-direction: column; }
+        .chat-header { background: #0f172a; color: white; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .chat-body { flex: 1; padding: 12px; background: #f8fafc; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .chat-footer { padding: 8px; background: white; display: flex; gap: 8px; border-top: 1px solid #e2e8f0; }
+        .chat-footer input { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; font-size: 12px; }
+        .chat-footer button { background: #0f172a; color: white; border: none; border-radius: 8px; padding: 8px 12px; }
+        .msg-sent { align-self: flex-end; background: #0f172a; color: white; padding: 8px 12px; border-radius: 12px 12px 0 12px; font-size: 12px; max-width: 75%; }
+        .msg-recv { align-self: flex-start; background: white; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 12px 12px 12px 0; font-size: 12px; max-width: 75%; }
+    </style>
+</head>
+<body>
+
+    <div class="app-frame">
+        <div class="app-header">
+            <div class="brand">
+                <div class="logo-box"><i class="fa-solid fa-id-card"></i></div>
+                <div class="title">
+                    <h1>NGAJOL DRIVER</h1>
+                    <p>Panel Mitra Ojek</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="badge-role"><i class="fa-solid fa-motorcycle"></i> Driver</span>
+                <button class="btn-logout" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+        </div>
+
+        <div id="driverSheet" class="sheet">
+            <div class="status-box">
+                <div class="status-info">
+                    <div id="dotStatus" class="dot"></div>
+                    <div>
+                        <div style="font-size:12px; font-weight:bold; color:#0f172a;">Status Driver</div>
+                        <div id="labelStatus" style="font-size:11px; color:#64748b;">Offline</div>
+                    </div>
+                </div>
+                <label class="toggle-switch">
+                    <input type="checkbox" onchange="toggleOnline(this.checked)">
+                    <span class="slider"></span>
+                </label>
+            </div>
+
+            <div id="orderCard" class="order-card hidden">
+                <div class="order-header">
+                    <span style="font-size:12px; font-weight:bold; color:#0f172a;" id="orderPassengerName">Orderan Masuk!</span>
+                    <span id="orderFare" class="order-fare">Rp 0</span>
+                </div>
+                <div class="order-details">
+                    <div>📍 <strong>Jemput:</strong> <span id="orderPickup">-</span></div>
+                    <div>🏁 <strong>Tujuan:</strong> <span id="orderDest">-</span></div>
+                    <div>📏 <strong>Jarak:</strong> <span id="orderDistance">- km</span></div>
+                </div>
+
+                <div id="actionAccept" class="btn-group">
+                    <button class="btn btn-reject" onclick="rejectOrder()">Abaikan</button>
+                    <button class="btn btn-accept" onclick="acceptOrder()">Terima Pesanan</button>
+                </div>
+
+                <div id="actionWorkflow" class="btn-group hidden">
+                    <button class="btn btn-accept" onclick="completeOrder()">Selesaikan Order</button>
+                    <button class="btn btn-chat" onclick="toggleChatWindow(true)"><i class="fa-solid fa-comments"></i></button>
+                </div>
+            </div>
+
+            <div id="emptyBox" style="text-align:center; padding:20px; color:#94a3b8; font-size:12px;">
+                Menunggu pesanan masuk dari penumpang...
+            </div>
+        </div>
+
+        <div id="chatWindow" class="chat-window hidden">
+            <div class="chat-header">
+                <h3>Chat Penumpang</h3>
+                <button onclick="toggleChatWindow(false)" style="background:none; border:none; color:white; font-size:16px;">✕</button>
+            </div>
+            <div id="chatMessages" class="chat-body"></div>
+            <div class="chat-footer">
+                <input type="text" id="chatInput" placeholder="Ketik balasan...">
+                <button onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let map, driverMarker;
+        let driverCoords = { lat: -6.6000, lng: 107.7500 };
+        let isOnline = false;
+
+        const currentUser = JSON.parse(localStorage.getItem('ngajol_user')) || { id: 999, nama: 'Driver' };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+
+            // Menerima orderan nyata dari penumpang
+            socket.on('incoming_order', (orderData) => {
+                if (!isOnline) return;
+
+                document.getElementById('orderPassengerName').innerText = `Orderan (${orderData.passengerName})`;
+                document.getElementById('orderFare').innerText = orderData.fare;
+                document.getElementById('orderPickup').innerText = orderData.pickup;
+                document.getElementById('orderDest').innerText = orderData.destination;
+                document.getElementById('orderDistance').innerText = `${orderData.distance} km`;
+
+                document.getElementById('emptyBox').classList.add('hidden');
+                document.getElementById('orderCard').classList.remove('hidden');
+            });
+
+            // Mendengarkan chat masuk dari penumpang
+            socket.on('receive_message', (chatData) => {
+                if (chatData.senderRole === 'passenger') {
+                    appendChatMessage(chatData.pesan, 'recv');
+                }
+            });
+        });
+
+        function logout() {
+            if (confirm("Yakin ingin keluar dari akun driver?")) {
+                localStorage.removeItem('ngajol_user');
+                window.location.href = '/index.html';
+            }
+        }
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([driverCoords.lat, driverCoords.lng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    driverCoords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    driverMarker = L.marker([driverCoords.lat, driverCoords.lng]).addTo(map);
+                    map.flyTo([driverCoords.lat, driverCoords.lng], 15);
+                });
+            }
+        }
+
+        function toggleOnline(online) {
+            isOnline = online;
+            const dot = document.getElementById('dotStatus');
+            const label = document.getElementById('labelStatus');
+
+            if (online) {
+                dot.classList.add('online');
+                label.innerText = "Online (Siap Terima Order)";
+                // Beritahu server bahwa driver ini siap menerima order
+                socket.emit('register_driver', currentUser.id);
+            } else {
+                dot.classList.remove('online');
+                label.innerText = "Offline";
+                document.getElementById('orderCard').classList.add('hidden');
+                document.getElementById('emptyBox').classList.remove('hidden');
+            }
+        }
+
+        function acceptOrder() {
+            document.getElementById('actionAccept').classList.add('hidden');
+            document.getElementById('actionWorkflow').classList.remove('hidden');
+        }
+
+        function rejectOrder() {
+            document.getElementById('orderCard').classList.add('hidden');
+            document.getElementById('emptyBox').classList.remove('hidden');
+        }
+
+        function completeOrder() {
+            alert("Pesanan selesai! Uang tunai diterima.");
+            document.getElementById('orderCard').classList.add('hidden');
+            document.getElementById('emptyBox').classList.remove('hidden');
+            document.getElementById('actionAccept').classList.remove('hidden');
+            document.getElementById('actionWorkflow').classList.add('hidden');
+        }
+
+        function toggleChatWindow(open) {
+            document.getElementById('chatWindow').classList.toggle('hidden', !open);
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            if (!input.value.trim()) return;
+
+            socket.emit('send_message', { senderRole: 'driver', pesan: input.value });
+            appendChatMessage(input.value, 'sent');
+            input.value = '';
+        }
+
+        function appendChatMessage(text, type) {
+            const body = document.getElementById('chatMessages');
+            const d = document.createElement('div');
+            d.className = type === 'sent' ? 'msg-sent' : 'msg-recv';
+            d.innerText = text;
+            body.appendChild(d);
+            body.scrollTop = body.scrollHeight;
+        }
+    </script>
+</body>
+</html>

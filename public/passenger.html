@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ngajol - Penumpang</title>
+
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="/socket.io/socket.io.js"></script>
+
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        body { background: #f1f5f9; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+
+        .app-frame {
+            width: 100%; max-width: 430px; height: 100vh; max-height: 900px;
+            background: #fff; display: flex; flex-direction: column;
+            position: relative; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.15);
+        }
+
+        .app-header {
+            background: #fff; padding: 12px 16px; display: flex; align-items: center;
+            justify-content: space-between; border-bottom: 1px solid #e2e8f0; z-index: 20;
+        }
+        .brand { display: flex; align-items: center; gap: 10px; }
+        .logo-box { width: 36px; height: 36px; background: #16a34a; color: white; border-radius: 10px; display: flex; align-items: center; justify-content: center; font-size: 18px; }
+        .title h1 { font-size: 16px; font-weight: bold; color: #0f172a; line-height: 1.1; }
+        .title p { font-size: 11px; color: #64748b; }
+        
+        .header-actions { display: flex; align-items: center; gap: 8px; }
+        .badge-role { background: #f0fdf4; color: #15803d; font-size: 11px; font-weight: bold; padding: 4px 8px; border-radius: 6px; border: 1px solid #bbf7d0; }
+        .btn-logout { background: #fee2e2; color: #ef4444; border: 1px solid #fca5a5; padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: bold; cursor: pointer; }
+
+        .map-container { flex: 1; width: 100%; position: relative; }
+        #map { width: 100%; height: 100%; z-index: 1; }
+        .btn-gps { position: absolute; top: 12px; right: 12px; z-index: 10; width: 40px; height: 40px; background: white; border: none; border-radius: 50%; box-shadow: 0 4px 10px rgba(0,0,0,0.15); color: #16a34a; font-size: 16px; cursor: pointer; }
+
+        .sheet { background: white; border-radius: 20px 20px 0 0; padding: 16px; box-shadow: 0 -5px 20px rgba(0,0,0,0.1); z-index: 20; display: flex; flex-direction: column; gap: 12px; }
+        .handle { width: 40px; height: 4px; background: #cbd5e1; border-radius: 2px; margin: 0 auto 4px auto; }
+        .input-group { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px 12px; display: flex; align-items: center; gap: 10px; }
+        .input-group input { border: none; background: transparent; width: 100%; font-size: 12px; outline: none; }
+
+        .services-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-top: 4px; }
+        .service-btn { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 8px 4px; text-align: center; cursor: pointer; }
+        .service-btn.active { background: #f0fdf4; border: 2px solid #16a34a; }
+        .service-btn i { font-size: 18px; margin-bottom: 4px; display: block; }
+        .service-btn span { font-size: 11px; font-weight: bold; display: block; }
+        .service-btn small { font-size: 9px; color: #64748b; }
+
+        .fare-card { background: #0f172a; color: white; border-radius: 12px; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .fare-price { font-size: 18px; font-weight: bold; color: #4ade80; }
+        .btn-order { background: #16a34a; color: white; border: none; padding: 12px; border-radius: 12px; font-weight: bold; font-size: 13px; width: 100%; cursor: pointer; display: flex; justify-content: center; align-items: center; gap: 8px; }
+        .btn-order:disabled { background: #cbd5e1; cursor: not-allowed; }
+
+        .hidden { display: none !important; }
+        .chat-window { position: absolute; inset: 0; background: white; z-index: 50; display: flex; flex-direction: column; }
+        .chat-header { background: #16a34a; color: white; padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+        .chat-body { flex: 1; padding: 12px; background: #f8fafc; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .chat-footer { padding: 8px; background: white; display: flex; gap: 8px; border-top: 1px solid #e2e8f0; }
+        .chat-footer input { flex: 1; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; font-size: 12px; }
+        .chat-footer button { background: #16a34a; color: white; border: none; border-radius: 8px; padding: 8px 12px; }
+        .msg-sent { align-self: flex-end; background: #16a34a; color: white; padding: 8px 12px; border-radius: 12px 12px 0 12px; font-size: 12px; max-width: 75%; }
+        .msg-recv { align-self: flex-start; background: white; border: 1px solid #e2e8f0; padding: 8px 12px; border-radius: 12px 12px 12px 0; font-size: 12px; max-width: 75%; }
+    </style>
+</head>
+<body>
+
+    <div class="app-frame">
+        <div class="app-header">
+            <div class="brand">
+                <div class="logo-box"><i class="fa-solid fa-motorcycle"></i></div>
+                <div class="title">
+                    <h1>NGAJOL</h1>
+                    <p>Ojek Online Urang Sunda</p>
+                </div>
+            </div>
+            <div class="header-actions">
+                <span class="badge-role"><i class="fa-solid fa-user"></i> Penumpang</span>
+                <button class="btn-logout" onclick="logout()"><i class="fa-solid fa-right-from-bracket"></i> Logout</button>
+            </div>
+        </div>
+
+        <div class="map-container">
+            <div id="map"></div>
+            <button class="btn-gps" onclick="locateUser()"><i class="fa-solid fa-crosshairs"></i></button>
+        </div>
+
+        <div id="passengerSheet" class="sheet">
+            <div class="handle"></div>
+
+            <div class="input-group">
+                <i class="fa-solid fa-circle-dot" style="color:#16a34a;"></i>
+                <input type="text" id="pickupInput" readonly placeholder="Mendeteksi lokasi penjemputan...">
+            </div>
+
+            <div class="input-group">
+                <i class="fa-solid fa-location-dot" style="color:#ef4444;"></i>
+                <input type="text" id="destInput" placeholder="Ketik alamat tujuan..." oninput="debounceSearchAddress(this.value)">
+            </div>
+            <div id="searchResults" class="hidden" style="background:white; border:1px solid #ddd; max-height:120px; overflow-y:auto; border-radius:8px;"></div>
+
+            <div class="services-grid">
+                <div onclick="selectService('ojek')" id="service-ojek" class="service-btn active">
+                    <i class="fa-solid fa-motorcycle" style="color:#16a34a;"></i>
+                    <span>Motor</span>
+                    <small>3k/km</small>
+                </div>
+                <div onclick="selectService('fast')" id="service-fast" class="service-btn">
+                    <i class="fa-solid fa-bolt" style="color:#f59e0b;"></i>
+                    <span>Express</span>
+                    <small>4k/km</small>
+                </div>
+                <div onclick="selectService('car')" id="service-car" class="service-btn">
+                    <i class="fa-solid fa-car" style="color:#3b82f6;"></i>
+                    <span>Mobil</span>
+                    <small>6k/km</small>
+                </div>
+                <div onclick="selectService('delivery')" id="service-delivery" class="service-btn">
+                    <i class="fa-solid fa-box" style="color:#a855f7;"></i>
+                    <span>Kurir</span>
+                    <small>3.5k/km</small>
+                </div>
+            </div>
+
+            <div class="fare-card">
+                <div>
+                    <div style="font-size:10px; color:#94a3b8;">ESTIMASI TARIF</div>
+                    <div id="displayFare" class="fare-price">Rp 0</div>
+                </div>
+                <span id="displayDistance" style="font-size:11px; color:#cbd5e1;">- km</span>
+            </div>
+
+            <button id="btnOrder" onclick="createAppOrder()" disabled class="btn-order">
+                <i class="fa-solid fa-paper-plane"></i> PESAN SEKARANG
+            </button>
+        </div>
+
+        <div id="passengerTrackingSheet" class="sheet hidden">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+                <h3 id="passengerTripStatusText" style="font-size:14px; color:#0f172a;">Mencari Driver...</h3>
+                <button onclick="cancelActiveTrip()" style="background:#fee2e2; color:#ef4444; border:none; padding:4px 8px; border-radius:6px; font-weight:bold;">Batal</button>
+            </div>
+            <button onclick="toggleChatWindow(true)" style="background:#16a34a; color:white; border:none; padding:10px; border-radius:8px; font-weight:bold; width:100%;">
+                <i class="fa-solid fa-comments"></i> Chat Driver
+            </button>
+        </div>
+
+        <div id="chatWindow" class="chat-window hidden">
+            <div class="chat-header">
+                <h3>Chat Driver Ngajol</h3>
+                <button onclick="toggleChatWindow(false)" style="background:none; border:none; color:white; font-size:16px;">✕</button>
+            </div>
+            <div id="chatMessages" class="chat-body"></div>
+            <div class="chat-footer">
+                <input type="text" id="chatInput" placeholder="Ketik pesan...">
+                <button onclick="sendChatMessage()"><i class="fa-solid fa-paper-plane"></i></button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const socket = io();
+        let map, userMarker, destMarker, routePolyline;
+        let userLocation = { lat: -6.6000, lng: 107.7500 };
+        let pickupCoords = null, destCoords = null;
+        let selectedService = 'ojek', calculatedFare = 0, calculatedDistanceKm = 0;
+        let pickupText = '', destText = '';
+        const RATES = { ojek: { base: 5000, perKm: 3000 }, fast: { base: 7000, perKm: 4000 }, car: { base: 12000, perKm: 6000 }, delivery: { base: 6000, perKm: 3500 } };
+
+        const currentUser = JSON.parse(localStorage.getItem('ngajol_user')) || { nama: 'Penumpang' };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            locateUser();
+
+            // Mendengarkan pesan balasan dari driver
+            socket.on('receive_message', (chatData) => {
+                if (chatData.senderRole === 'driver') {
+                    appendChatMessage(chatData.pesan, 'recv');
+                }
+            });
+        });
+
+        function logout() {
+            if (confirm("Yakin ingin keluar dari akun?")) {
+                localStorage.removeItem('ngajol_user');
+                window.location.href = '/index.html';
+            }
+        }
+
+        function initMap() {
+            map = L.map('map', { zoomControl: false }).setView([userLocation.lat, userLocation.lng], 14);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+            map.on('click', (e) => {
+                setDestinationCoords(e.latlng.lat, e.latlng.lng, `Titik Pilihan (${e.latlng.lat.toFixed(4)}, ${e.latlng.lng.toFixed(4)})`);
+            });
+        }
+
+        function locateUser() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition((pos) => {
+                    userLocation = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+                    if (!userMarker) userMarker = L.marker([userLocation.lat, userLocation.lng]).addTo(map);
+                    else userMarker.setLatLng([userLocation.lat, userLocation.lng]);
+                    map.flyTo([userLocation.lat, userLocation.lng], 15);
+                    pickupCoords = { ...userLocation };
+                    pickupText = `Jemput (${userLocation.lat.toFixed(4)}, ${userLocation.lng.toFixed(4)})`;
+                    document.getElementById('pickupInput').value = pickupText;
+                });
+            }
+        }
+
+        let debounceTimer;
+        function debounceSearchAddress(query) {
+            clearTimeout(debounceTimer);
+            const box = document.getElementById('searchResults');
+            if (!query.trim()) return box.classList.add('hidden');
+            debounceTimer = setTimeout(async () => {
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=3`);
+                    const data = await res.json();
+                    box.innerHTML = '';
+                    data.forEach(item => {
+                        const d = document.createElement('div');
+                        d.style.cssText = "padding:8px; font-size:11px; cursor:pointer; border-bottom:1px solid #eee";
+                        d.innerText = item.display_name;
+                        d.onclick = () => {
+                            setDestinationCoords(parseFloat(item.lat), parseFloat(item.lon), item.display_name);
+                            box.classList.add('hidden');
+                        };
+                        box.appendChild(d);
+                    });
+                    box.classList.remove('hidden');
+                } catch(e) {}
+            }, 400);
+        }
+
+        function setDestinationCoords(lat, lng, name) {
+            destCoords = { lat, lng };
+            destText = name;
+            document.getElementById('destInput').value = name;
+            if (destMarker) map.removeLayer(destMarker);
+            destMarker = L.marker([lat, lng]).addTo(map);
+            calculateRoute();
+        }
+
+        async function calculateRoute() {
+            if (!pickupCoords || !destCoords) return;
+            try {
+                const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${pickupCoords.lng},${pickupCoords.lat};${destCoords.lng},${destCoords.lat}?overview=full&geometries=geojson`);
+                const data = await res.json();
+                if (data.routes && data.routes.length > 0) {
+                    calculatedDistanceKm = (data.routes[0].distance / 1000).toFixed(1);
+                    if (routePolyline) map.removeLayer(routePolyline);
+                    const coords = data.routes[0].geometry.coordinates.map(c => [c[1], c[0]]);
+                    routePolyline = L.polyline(coords, { color: '#16a34a', weight: 5 }).addTo(map);
+                    map.fitBounds(routePolyline.getBounds(), { padding: [30, 30] });
+
+                    const cfg = RATES[selectedService];
+                    calculatedFare = Math.round((cfg.base + (calculatedDistanceKm * cfg.perKm)) / 500) * 500;
+                    document.getElementById('displayFare').innerText = `Rp ${calculatedFare.toLocaleString('id-ID')}`;
+                    document.getElementById('displayDistance').innerText = `${calculatedDistanceKm} km`;
+                    document.getElementById('btnOrder').disabled = false;
+                }
+            } catch(e) {}
+        }
+
+        function selectService(type) {
+            selectedService = type;
+            document.querySelectorAll('.service-btn').forEach(b => b.classList.remove('active'));
+            document.getElementById(`service-${type}`).classList.add('active');
+            if (destCoords) calculateRoute();
+        }
+
+        function createAppOrder() {
+            const orderPayload = {
+                passengerName: currentUser.nama,
+                layanan: selectedService,
+                pickup: pickupText,
+                destination: destText || document.getElementById('destInput').value,
+                distance: calculatedDistanceKm,
+                fare: `Rp ${calculatedFare.toLocaleString('id-ID')}`
+            };
+
+            // Kirim sinyal orderan baru via Socket.IO
+            socket.emit('new_order', orderPayload);
+
+            document.getElementById('passengerSheet').classList.add('hidden');
+            document.getElementById('passengerTrackingSheet').classList.remove('hidden');
+        }
+
+        function cancelActiveTrip() {
+            document.getElementById('passengerTrackingSheet').classList.add('hidden');
+            document.getElementById('passengerSheet').classList.remove('hidden');
+        }
+
+        function toggleChatWindow(open) {
+            document.getElementById('chatWindow').classList.toggle('hidden', !open);
+        }
+
+        function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            if (!input.value.trim()) return;
+            
+            socket.emit('send_message', { senderRole: 'passenger', pesan: input.value });
+            appendChatMessage(input.value, 'sent');
+            input.value = '';
+        }
+
+        function appendChatMessage(text, type) {
+            const body = document.getElementById('chatMessages');
+            const d = document.createElement('div');
+            d.className = type === 'sent' ? 'msg-sent' : 'msg-recv';
+            d.innerText = text;
+            body.appendChild(d);
+            body.scrollTop = body.scrollHeight;
+        }
+    </script>
+</body>
+</html>
