@@ -24,6 +24,24 @@ const pool = new Pool({
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.get('/api/health', async (req, res) => {
+    try {
+        await pool.query('SELECT 1');
+        res.json({
+            success: true,
+            status: 'online',
+            database: 'connected',
+            app: 'NGAJOL'
+        });
+    } catch (error) {
+        res.status(503).json({
+            success: false,
+            status: 'error',
+            database: 'disconnected'
+        });
+    }
+});
+
 function createToken(user) {
     return jwt.sign(
         { id: user.id, nama: user.nama },
