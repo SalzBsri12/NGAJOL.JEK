@@ -107,17 +107,17 @@
                     <span>Motor</span>
                     <small>3k/km</small>
                 </div>
-                <div onclick="selectService('fast')" id="service-fast" class="service-btn">
+                <div onclick="selectService('fast')" id="service-fast" class="service-btn" style="display:none;">
                     <i class="fa-solid fa-bolt" style="color:#f59e0b;"></i>
                     <span>Express</span>
                     <small>4k/km</small>
                 </div>
-                <div onclick="selectService('car')" id="service-car" class="service-btn">
+                <div onclick="selectService('car')" id="service-car" class="service-btn" style="display:none;">
                     <i class="fa-solid fa-car" style="color:#3b82f6;"></i>
                     <span>Mobil</span>
                     <small>6k/km</small>
                 </div>
-                <div onclick="selectService('delivery')" id="service-delivery" class="service-btn">
+                <div onclick="selectService('delivery')" id="service-delivery" class="service-btn" style="display:none;">
                     <i class="fa-solid fa-box" style="color:#a855f7;"></i>
                     <span>Kurir</span>
                     <small>3.5k/km</small>
@@ -161,15 +161,27 @@
     </div>
 
     <script>
-        const socket = io();
+        const authToken = localStorage.getItem('ngajol_token');
+        const socket = io({ auth: { token: authToken || '' } });
         let map, userMarker, destMarker, routePolyline;
         let userLocation = { lat: -6.6000, lng: 107.7500 };
         let pickupCoords = null, destCoords = null;
         let selectedService = 'ojek', calculatedFare = 0, calculatedDistanceKm = 0;
         let pickupText = '', destText = '';
-        const RATES = { ojek: { base: 5000, perKm: 3000 }, fast: { base: 7000, perKm: 4000 }, car: { base: 12000, perKm: 6000 }, delivery: { base: 6000, perKm: 3500 } };
+        const RATES = { ojek: { base: 5000, perKm: 3000 } };
 
-        const currentUser = JSON.parse(localStorage.getItem('ngajol_user')) || { nama: 'Penumpang' };
+        const currentUser = JSON.parse(localStorage.getItem('ngajol_user') || 'null');
+
+        if (!authToken || !currentUser) {
+            window.location.replace('/index.html');
+        }
+
+        socket.on('connect_error', () => {
+            alert('Sesi login tidak valid. Silakan login kembali.');
+            localStorage.removeItem('ngajol_token');
+            localStorage.removeItem('ngajol_user');
+            window.location.replace('/index.html');
+        });
 
         document.addEventListener('DOMContentLoaded', () => {
             initMap();
@@ -185,6 +197,7 @@
 
         function logout() {
             if (confirm("Yakin ingin keluar dari akun?")) {
+                localStorage.removeItem('ngajol_token');
                 localStorage.removeItem('ngajol_user');
                 window.location.href = '/index.html';
             }

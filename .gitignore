@@ -4,3 +4,7 @@ node_modules/
 !.env.example
 npm-debug.log*
 .DS_Store
+
+# Local dependencies and Android app
+node_modules/
+android/

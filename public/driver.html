@@ -149,19 +149,73 @@
     </div>
 
     <script>
-        const socket = io();
+        const authToken = localStorage.getItem('ngajol_token');
+        const socket = io({ auth: { token: authToken || '' } });
         let map, driverMarker;
         let driverCoords = { lat: -6.6000, lng: 107.7500 };
         let isOnline = false;
+        let driverReady = false;
 
-        const currentUser = JSON.parse(localStorage.getItem('ngajol_user')) || { id: 999, nama: 'Driver' };
+        const currentUser = JSON.parse(localStorage.getItem('ngajol_user') || 'null');
+
+        if (!authToken || !currentUser || currentUser.role !== 'driver') {
+            window.location.replace('/index.html');
+        }
+
+        socket.on('connect', () => {
+            console.log('Socket Driver tersambung:', socket.id);
+            if (isOnline) registerDriver();
+        });
+
+        socket.on('disconnect', () => {
+            driverReady = false;
+            if (isOnline) {
+                document.getElementById('labelStatus').innerText =
+                    'Koneksi terputus, menghubungkan ulang...';
+            }
+        });
+
+        socket.on('driver_ready', () => {
+            driverReady = true;
+            if (isOnline) {
+                document.getElementById('labelStatus').innerText =
+                    'Online (Siap Terima Order)';
+            }
+            console.log('Driver berhasil terdaftar di server');
+        });
+
+        socket.on('driver_not_approved', (data) => {
+            isOnline = false;
+            driverReady = false;
+            document.getElementById('dotStatus').classList.remove('online');
+            document.getElementById('labelStatus').innerText =
+                data?.message || 'Akun driver belum disetujui admin.';
+            alert(data?.message || 'Akun driver belum disetujui admin.');
+        });
+
+        socket.on('connect_error', (err) => {
+            console.log('Socket error:', err.message);
+            alert('Koneksi atau sesi login bermasalah. Silakan login kembali.');
+            localStorage.removeItem('ngajol_token');
+            localStorage.removeItem('ngajol_user');
+            window.location.replace('/index.html');
+        });
+
+        function registerDriver() {
+            if (isOnline && socket.connected) {
+                driverReady = false;
+                socket.emit('register_driver', currentUser.id);
+                document.getElementById('labelStatus').innerText =
+                    'Menghubungkan ke server...';
+            }
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
             initMap();
 
             // Menerima orderan nyata dari penumpang
             socket.on('incoming_order', (orderData) => {
-                if (!isOnline) return;
+                if (!isOnline || !driverReady) return;
 
                 document.getElementById('orderPassengerName').innerText = `Orderan (${orderData.passengerName})`;
                 document.getElementById('orderFare').innerText = orderData.fare;
@@ -183,6 +237,7 @@
 
         function logout() {
             if (confirm("Yakin ingin keluar dari akun driver?")) {
+                localStorage.removeItem('ngajol_token');
                 localStorage.removeItem('ngajol_user');
                 window.location.href = '/index.html';
             }
@@ -203,17 +258,21 @@
 
         function toggleOnline(online) {
             isOnline = online;
+            driverReady = false;
             const dot = document.getElementById('dotStatus');
             const label = document.getElementById('labelStatus');
 
             if (online) {
                 dot.classList.add('online');
-                label.innerText = "Online (Siap Terima Order)";
-                // Beritahu server bahwa driver ini siap menerima order
-                socket.emit('register_driver', currentUser.id);
+
+                if (socket.connected) {
+                    registerDriver();
+                } else {
+                    label.innerText = 'Menghubungkan ke server...';
+                }
             } else {
                 dot.classList.remove('online');
-                label.innerText = "Offline";
+                label.innerText = 'Offline';
                 document.getElementById('orderCard').classList.add('hidden');
                 document.getElementById('emptyBox').classList.remove('hidden');
             }

@@ -1,0 +1,15 @@
+BEGIN;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS security_question VARCHAR(200);
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS security_answer_hash TEXT;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS security_answer_attempts INTEGER NOT NULL DEFAULT 0;
+
+ALTER TABLE users
+ADD COLUMN IF NOT EXISTS security_locked_until TIMESTAMPTZ;
+
+COMMIT;
